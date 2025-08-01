@@ -1,0 +1,765 @@
+FRND
+frnd
+Frnd
+FRND App
+frnd app
+Profile
+Chat
+Message
+Video Call
+Audio Call
+Voice Message
+Photo
+Video
+Match
+Like
+Connect
+Block
+Report
+Premium
+Coins
+Notification
+Update
+New
+Feature
+WhatsApp
+Facebook
+Instagram
+YouTube
+Google
+Android
+iPhone
+App
+Mobile
+Phone
+Internet
+WiFi
+Data
+Recharge
+Balance
+SMS
+Call
+Video
+Photo
+Camera
+Gallery
+Download
+Upload
+Share
+Forward
+Delete
+Copy
+Paste
+Save
+Settings
+Account
+Profile
+Password
+OTP
+Login
+Logout
+Paytm
+PhonePe
+GPay
+UPI
+Bank
+ATM
+Cash
+Payment
+Money
+Rupees
+Free
+Paid
+Premium
+Subscription
+Recharge
+Bill
+Transaction
+Refund
+Cashback
+Aadhaar
+PAN
+Voter ID
+Driving License
+Passport
+Ration Card
+Bank Account
+Post Office
+Government
+Police
+Court
+Hospital
+School
+College
+University
+Office
+Job
+Salary
+Income
+10th
+12th
+Graduation
+BA
+BSc
+BCom
+MA
+MSc
+MCom
+B.Tech
+MBA
+Government Job
+Private Job
+Teacher
+Doctor
+Engineer
+Nurse
+Bank Job
+Railway
+Police
+Army
+SSC
+Banking
+UPSC
+State Government
+Central Government
+OK
+Yes
+No
+Please
+Thank You
+Sorry
+Excuse Me
+Hello
+Hi
+Bye
+Good Morning
+Good Night
+Happy
+Sad
+Love
+Like
+Friend
+Family
+Brother
+Sister
+Mother
+Father
+Son
+Daughter
+Husband
+Wife
+Boyfriend
+Girlfriend
+Marriage
+Wedding
+Engagement
+Festival
+Birthday
+Anniversary
+Gift
+Surprise
+Party
+Function
+Ceremony
+App Store
+Play Store
+Update
+Version
+Install
+Uninstall
+Notification
+Alert
+Message
+Chat
+Call
+Video Call
+Screenshot
+Record
+Live
+Story
+Post
+Status
+Bio
+DP
+Profile Picture
+Cover Photo
+Timeline
+News Feed
+Home
+Search
+Menu
+Back
+Next
+Previous
+Cancel
+Confirm
+Submit
+Send
+Receive
+Online
+Offline
+Connected
+Disconnected
+Network
+Signal
+Battery
+Charging
+Storage
+Memory
+Space
+Full
+Empty
+New
+Old
+Latest
+Recent
+Today
+Yesterday
+Tomorrow
+Morning
+Afternoon
+Evening
+Night
+Time
+Date
+Calendar
+Clock
+Alarm
+Reminder
+To Do
+Task
+List
+Note
+Memo
+Facebook
+WhatsApp
+Instagram
+YouTube
+TikTok
+Snapchat
+Tweet
+Twitter
+Post
+Story
+Status
+Update
+Share
+Like
+Comment
+Follow
+Unfollow
+Friend
+Unfriend
+Block
+Unblock
+Report
+Message
+Chat
+Group
+Individual
+Private
+Public
+Viral
+Trending
+Popular
+Famous
+Celebrity
+Influencer
+Follower
+Following
+Subscriber
+View
+Viewer
+Watch
+Listen
+Read
+Write
+Type
+Send
+Receive
+Reply
+Forward
+Delete
+Edit
+Save
+Download
+Upload
+Photo
+Picture
+Image
+Video
+Audio
+Voice
+Music
+Song
+Movie
+Film
+Show
+Series
+Episode
+Channel
+Live
+Record
+Capture
+Selfie
+Filter
+Effect
+Sticker
+Emoji
+GIF
+Meme
+Bollywood
+Hollywood
+Cricket
+Football
+Kabaddi
+IPL
+World Cup
+Festival
+Diwali
+Holi
+Eid
+Christmas
+New Year
+Valentine
+Karva Chauth
+Raksha Bandhan
+Navratri
+Durga Puja
+Ganesh Chaturthi
+Dussehra
+Janmashtami
+Ram Navami
+Shivratri
+Baisakhi
+Pongal
+Onam
+Ugadi
+Gudi Padwa
+Akshaya Tritiya
+Dhanteras
+Diwali
+Bhai Dooj
+Guru Nanak Jayanti
+Guru Gobind Singh Jayanti
+Mahavir Jayanti
+Buddha Purnima
+Good Friday
+Easter
+Muharram
+Milad un Nabi
+Shab e Barat
+Shab e Qadr
+Ramadan
+Ramzan
+Eid ul Fitr
+Eid ul Adha
+Pizza
+Burger
+Sandwich
+Noodles
+Pasta
+Rice
+Dal
+Roti
+Sabzi
+Tea
+Coffee
+Juice
+Water
+Milk
+Ice Cream
+Cake
+Chocolate
+Sweet
+Spicy
+Hot
+Cold
+Fresh
+Restaurant
+Hotel
+Cafe
+Mall
+Market
+Shop
+Store
+Brand
+Quality
+Price
+Discount
+Offer
+Sale
+Free
+Gift
+Shopping
+Online
+Offline
+Home Delivery
+Takeaway
+Dine In
+Booking
+Reservation
+Order
+Bill
+Payment
+Cash
+Card
+Digital
+Doctor
+Hospital
+Clinic
+Medicine
+Tablet
+Injection
+Checkup
+Test
+Report
+Fever
+Cough
+Cold
+Headache
+Stomach Pain
+Blood Pressure
+Sugar
+Diabetes
+Heart
+Kidney
+Liver
+Eye
+Ear
+Nose
+Throat
+Skin
+Hair
+Tooth
+Dental
+Emergency
+Ambulance
+First Aid
+Vaccination
+Vaccine
+COVID
+Corona
+Mask
+Sanitizer
+Hand Wash
+Social Distance
+Quarantine
+Isolation
+Home
+Stay Safe
+Health
+Fitness
+Exercise
+Gym
+Yoga
+Walking
+Running
+Diet
+Weight
+Height
+Age
+Train
+Bus
+Auto
+Taxi
+Rickshaw
+Bike
+Car
+Scooter
+Cycle
+Walk
+Station
+Bus Stop
+Railway Station
+Airport
+Ticket
+Reservation
+Platform
+Seat
+Window
+Aisle
+AC
+Non AC
+Sleeper
+General
+Express
+Local
+Metro
+Flight
+Domestic
+International
+Passport
+Visa
+Luggage
+Bag
+Check In
+Boarding
+Departure
+Arrival
+Delay
+Cancel
+Refund
+Journey
+Travel
+Trip
+Tour
+Vacation
+Holiday
+Picnic
+Outing
+Adventure
+Sightseeing
+Hotel
+Resort
+Guest House
+Room
+Single
+Double
+AC Room
+Non AC Room
+Bathroom
+Toilet
+Hot Water
+Cold Water
+Room Service
+Reception
+Check In
+Check Out
+Booking
+Advance
+Full Payment
+Partial Payment
+Reliance Jio
+Airtel
+Vodafone
+BSNL
+Idea
+Vi
+Tata
+Bajaj
+Hero
+Honda
+Maruti
+Hyundai
+Mahindra
+Toyota
+Ford
+Chevrolet
+Renault
+Nissan
+Skoda
+Volkswagen
+BMW
+Mercedes
+Audi
+Jaguar
+Land Rover
+Volvo
+Samsung
+Mi
+Xiaomi
+Redmi
+OnePlus
+Oppo
+Vivo
+Realme
+Motorola
+Nokia
+LG
+Sony
+Panasonic
+Godrej
+IFB
+Whirlpool
+Haier
+Videocon
+Micromax
+Lava
+Karbonn
+Intex
+Jio Phone
+iPhone
+iPad
+MacBook
+Laptop
+Desktop
+Computer
+Tablet
+Smart TV
+LED TV
+LCD TV
+CRT TV
+DTH
+Tata Sky
+Airtel Digital TV
+Dish TV
+Videocon d2h
+Sun Direct
+DD Free Dish
+Cable
+Set Top Box
+Remote
+Antenna
+Satellite
+Job
+Work
+Office
+Company
+Business
+Shop
+Factory
+Farm
+Field
+Construction
+Labour
+Worker
+Employee
+Employer
+Boss
+Manager
+Supervisor
+Team Leader
+Clerk
+Accountant
+Cashier
+Salesman
+Security Guard
+Driver
+Cook
+Waiter
+Servant
+Maid
+Watchman
+Gardener
+Electrician
+Plumber
+Carpenter
+Mechanic
+Tailor
+Barber
+Beauty Parlour
+Salon
+Doctor
+Nurse
+Teacher
+Professor
+Lawyer
+Judge
+Police
+Army
+Navy
+Air Force
+Government
+Private
+MNC
+Startup
+Business Owner
+Entrepreneur
+Self Employed
+Part Time
+Full Time
+Shift
+Day Shift
+Night Shift
+Over Time
+Salary
+Wage
+Daily Wage
+Monthly Salary
+Annual Salary
+Bonus
+Increment
+Promotion
+Transfer
+Resignation
+Retirement
+Pension
+PF
+EPF
+ESI
+Gratuity
+Leave
+Casual Leave
+Sick Leave
+Earned Leave
+Maternity Leave
+Paternity Leave
+Festival Leave
+National Holiday
+Sunday
+Saturday
+Half Day
+Full Day
+Attendance
+Punctual
+Late
+Absent
+Present
+Meeting
+Conference
+Training
+Seminar
+Workshop
+Project
+Target
+Deadline
+Report
+Presentation
+Interview
+Selection
+Rejection
+Application
+Resume
+CV
+Bio Data
+Experience
+Fresher
+Experienced
+Qualification
+Certificate
+Degree
+Diploma
+Skill
+Talent
+Ability
+Knowledge
+Learning
+Study
+Practice
+Hard Work
+Smart Work
+Success
+Failure
+Achievement
+Goal
+Dream
+Ambition
+Career
+Future
+Growth
+Development
+Progress
+Improvement
+Change
+Opportunity
+Challenge
+Problem
+Solution
+Idea
+Innovation
+Creativity
+Leadership
+Team Work
+Communication
+English
+Hindi
+Regional Language
+Local Language
+Mother Tongue
+Native Language
+Fluent
+Basic
+Intermediate
+Advanced
+Beginner
