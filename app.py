@@ -67,7 +67,7 @@ AUDIENCE_TYPES = {
     "Business Professionals": "formal, professional terminology"
 }
 
-# Regional variations
+# Regional variations - removed from UI but kept for future use
 REGIONAL_VARIANTS = {
     "hi-IN": ["Standard Hindi", "Delhi Hindi", "Mumbai Hindi", "UP Hindi"],
     "ta-IN": ["Standard Tamil", "Chennai Tamil", "Madurai Tamil", "Literary Tamil"],
@@ -198,7 +198,7 @@ def analyze_translation_quality(original, translated, source_lang, target_lang):
     
     return quality_flags, confidence
 
-def translate_text(text, source_lang, target_lang, gender, mode, context_type="", audience="", formality_level=3, regional_variant=""):
+def translate_text(text, source_lang, target_lang, gender, mode, context_type="", audience="", formality_level=3):
     # REMOVED CHARACTER LIMIT
     
     # Get language-specific settings
@@ -306,13 +306,7 @@ with col2:
     formality_level = st.slider("Formality Level:", 1, 5, 2, 
         help="1=Very Casual, 3=Neutral, 5=Very Formal")
     
-    # Regional variant (if available)
-    target_code = LANG_MAP[target_ui]
-    if target_code in REGIONAL_VARIANTS:
-        regional_variant = st.selectbox(f"{target_ui} Variant:", 
-            ["Standard"] + REGIONAL_VARIANTS[target_code])
-    else:
-        regional_variant = ""
+    # Regional variant removed - not needed
     
     st.markdown("**Translation Style**")
     col_gender, col_mode = st.columns(2)
@@ -333,7 +327,7 @@ if st.button("🔄 Translate", type="primary", use_container_width=True):
             
             result = translate_text(
                 text.strip(), src, tgt, gender, selected_mode,
-                context_type, audience, formality_level, regional_variant
+                context_type, audience, formality_level
             )
             
             st.session_state.last_translation = result
