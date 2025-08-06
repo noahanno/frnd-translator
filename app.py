@@ -277,107 +277,127 @@ def calculate_translation_confidence(original, translated, source_lang, target_l
     
     return max(0.0, min(1.0, confidence))
 
-# -------------------- CHATGPT INTEGRATION -------------------- #
+# -------------------- CHATGPT QUALITY CHECKER -------------------- #
 
-def get_chatgpt_translation(text, target_lang, source_lang="en-IN"):
-    """Get translation from ChatGPT for comparison"""
+def get_language_context_for_gpt(target_lang, mode, context_type, audience, formality_level):
+    """Build detailed context instructions for ChatGPT based on Sarvam settings"""
     
-    if not OPENAI_API_KEY:
-        return None, "OpenAI API key not found"
-    
-    # Language mapping for ChatGPT
-    lang_names = {
-        "hi-IN": "Hindi with Roman script and English code-mixing (like: 'weekend ON ho chuka hai')",
-        "ta-IN": "Tamil script with selective English words (like: 'Saturday – weekend OFFICIALLY ON!')",
-        "te-IN": "Telugu with Roman script and English code-mixing (like: 'weekend officially ON lo undhi')",
-        "ml-IN": "Malayalam script with simple English terms preserved",
-        "kn-IN": "Kannada script with simple English terms preserved"
+    # Language-specific instructions
+    lang_instructions = {
+        "hi-IN": "Hindi with Roman script (Hinglish) and English code-mixing. Example: 'weekend ON ho gaya hai'",
+        "ta-IN": "Tamil script with selective English words preserved. Example: 'Saturday – weekend OFFICIALLY ON!'", 
+        "te-IN": "Telugu with Roman script and English code-mixing. Example: 'weekend officially ON lo undhi'",
+        "ml-IN": "Malayalam script with simple English terms preserved where natural",
+        "kn-IN": "Kannada script with simple English terms preserved where natural"
     }
     
-    target_lang_instruction = lang_names.get(target_lang, "the target language")
+    # Mode instructions
+    mode_instructions = {
+        "modern-colloquial": "modern, casual, conversational style",
+        "formal": "formal, professional, respectful tone",
+        "classic-colloquial": "literal, word-for-word accuracy prioritized",
+        "code-mixed": "heavy English-local language mixing, trendy expressions"
+    }
     
-    prompt = f"""Translate this English text to {target_lang_instruction}:
+    # Formality mapping
+    formality_descriptions = {
+        1: "very casual, informal",
+        2: "casual, friendly", 
+        3: "neutral, balanced",
+        4: "respectful, semi-formal",
+        5: "very formal, professional"
+    }
+    
+    # Build comprehensive context
+    context = f"""
+Language Target: {lang_instructions.get(target_lang, "the target language")}
+Style Mode: {mode_instructions.get(mode, mode)}
+Formality Level: {formality_descriptions.get(formality_level, "balanced")}
+"""
+    
+    if context_type:
+        context += f"Context: {CONTEXT_TYPES.get(context_type, context_type)}\n"
+    
+    if audience:
+        context += f"Target Audience: {AUDIENCE_TYPES.get(audience, audience)}\n"
+    
+    return context
 
-"{text}"
+def chatgpt_quality_check_and_improve(original_text, sarvam_translation, target_lang, mode, context_type, audience, formality_level):
+    """Use ChatGPT to quality check and improve Sarvam translation with exact same context"""
+    
+    if not OPENAI_API_KEY or not sarvam_translation or sarvam_translation.startswith("❌"):
+        return sarvam_translation, "No ChatGPT API key or invalid Sarvam translation"
+    
+    # Build context instructions matching Sarvam settings
+    language_context = get_language_context_for_gpt(target_lang, mode, context_type, audience, formality_level)
+    
+    prompt = f"""You are a translation quality expert. Your task is to review and improve a translation while maintaining the EXACT same style, context, and formatting requirements.
 
-Keep the translation natural and engaging, preserving brand names like FRND, and maintain the style shown in the examples."""
+ORIGINAL ENGLISH TEXT:
+"{original_text}"
+
+SARVAM TRANSLATION TO REVIEW:
+"{sarvam_translation}"
+
+REQUIRED TRANSLATION SETTINGS (MUST FOLLOW EXACTLY):
+{language_context}
+
+IMPORTANT INSTRUCTIONS:
+1. Preserve brand names like "FRND", "Team FRND" exactly as they are
+2. Maintain the exact script style (Roman/Native) as shown in the Sarvam translation
+3. Keep the same level of English code-mixing as the original translation
+4. Preserve the same formality level and tone
+5. Only make improvements if there are clear issues (incomplete sentences, grammar errors, unnatural phrasing)
+6. If the Sarvam translation is already good, return it unchanged
+7. Do not change the overall approach - just refine if needed
+
+TASK: Review the Sarvam translation for quality issues and provide the improved version. If no improvements needed, return the original translation exactly as is.
+
+IMPROVED TRANSLATION:"""
 
     try:
-        # Updated headers and payload for current OpenAI API
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
             "Content-Type": "application/json"
         }
         
         payload = {
-            "model": "gpt-3.5-turbo",  # Using cheaper model first
+            "model": "gpt-3.5-turbo",
             "messages": [
-                {"role": "system", "content": "You are a professional translator specializing in Indian languages with natural code-mixing patterns."},
+                {"role": "system", "content": "You are a translation quality expert specializing in maintaining consistency while improving quality."},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 500,
-            "temperature": 0.3
+            "max_tokens": 800,
+            "temperature": 0.1  # Low temperature for consistency
         }
         
-        # Correct OpenAI API endpoint
         response = requests.post("https://api.openai.com/v1/chat/completions", 
                                headers=headers, 
                                json=payload, 
                                timeout=30)
         
-        # Debug information
-        if response.status_code != 200:
-            return None, f"OpenAI API Error: {response.status_code} - {response.text[:200]}"
-        
-        try:
+        if response.status_code == 200:
             result = response.json()
-            if "choices" not in result or len(result["choices"]) == 0:
-                return None, f"No translation returned: {result}"
-            
-            translation = result["choices"][0]["message"]["content"].strip()
-            return translation, None
-            
-        except KeyError as ke:
-            return None, f"Response parsing error: {ke} - Response: {response.text[:200]}"
+            if "choices" in result and len(result["choices"]) > 0:
+                improved_translation = result["choices"][0]["message"]["content"].strip()
+                
+                # Clean any potential ChatGPT additions
+                improved_translation = re.sub(r'^(IMPROVED TRANSLATION:|Translation:|Final Translation:)\s*', '', improved_translation, flags=re.IGNORECASE)
+                improved_translation = improved_translation.strip()
+                
+                return improved_translation, None
+            else:
+                return sarvam_translation, "No response from ChatGPT"
+        else:
+            return sarvam_translation, f"ChatGPT API Error: {response.status_code}"
             
     except requests.exceptions.Timeout:
-        return None, "OpenAI API timeout - try again"
+        return sarvam_translation, "ChatGPT timeout - using Sarvam translation"
     except requests.exceptions.ConnectionError:
-        return None, "Connection error - check internet"
+        return sarvam_translation, "Connection error - using Sarvam translation"
     except Exception as e:
-        return None, f"Unexpected error: {str(e)}"
-
-def calculate_chatgpt_confidence(original, translated, target_lang):
-    """Calculate confidence score for ChatGPT translation"""
-    if not translated:
-        return 0.0
-    
-    confidence = 1.0
-    
-    # Check for appropriate code-mixing patterns
-    if target_lang in ["hi-IN", "te-IN"]:
-        # Should have good English mixing
-        english_words = re.findall(r'\b[A-Za-z]{3,}\b', translated)
-        english_ratio = len(english_words) / len(translated.split()) if translated.split() else 0
-        if english_ratio < 0.2:  # Too little English for code-mixed languages
-            confidence -= 0.2
-    
-    # Check length ratio
-    length_ratio = len(translated) / len(original) if original else 1
-    if length_ratio > 3.0 or length_ratio < 0.3:
-        confidence -= 0.2
-    
-    # Check for brand name preservation
-    if "FRND" in original.upper() and "FRND" not in translated:
-        confidence -= 0.3
-    
-    # Check sentence completeness
-    original_sentences = len(re.findall(r'[.!?]+', original))
-    translated_sentences = len(re.findall(r'[.!?।]+', translated))
-    if original_sentences > translated_sentences + 1:
-        confidence -= 0.3
-    
-    return max(0.0, min(1.0, confidence))
+        return sarvam_translation, f"ChatGPT error: {str(e)}"
 
 def analyze_translation_quality(original, translated, source_lang, target_lang):
     """Enhanced quality analysis with universal issue detection"""
@@ -500,19 +520,23 @@ def check_cultural_sensitivity(text, target_lang):
     return warnings
 
 # -------------------- STREAMLIT UI -------------------- #
-st.title("🎯 FRND Enhanced Translator")
-st.markdown("*Issue-optimized translations with smart corrections*")
+st.title("🎯 FRND Enhanced Translator with AI Quality Check")
+st.markdown("*Sarvam translation enhanced by ChatGPT quality checking*")
 
 # Quality improvements info
-with st.expander("🔧 Universal Quality Improvements"):
+with st.expander("🔧 Enhanced Quality Process"):
     st.markdown("""
-    **Improvements Applied to ALL Languages:**
-    - 🎯 **Complete Translations**: Ensures all parts including "interesting friend", "first step" are translated
-    - 🔧 **Brand Protection**: Automatic removal of brackets around FRND, Team FRND across all languages
-    - 📝 **Sentence Completion**: Enhanced detection and prevention of missing sentences
-    - 🎨 **Catchy Phrase Enhancement**: Better translation of marketing phrases across all languages
+    **Translation Process:**
+    1. 🎯 **Sarvam Translation**: Initial translation with optimized settings
+    2. 🤖 **ChatGPT Quality Check**: Reviews and refines the Sarvam translation using identical context settings
+    3. ✨ **Final Result**: Best of both - Sarvam's contextual accuracy + ChatGPT's quality refinement
+    
+    **Universal Improvements:**
+    - 🎯 **Complete Translations**: Ensures all parts are translated
+    - 🔧 **Brand Protection**: Preserves FRND brand formatting
+    - 📝 **Quality Assurance**: ChatGPT reviews for grammar and naturalness
+    - 🎨 **Context Consistency**: Same language patterns maintained throughout
     """)
-
 
 # Main content area
 col1, col2 = st.columns([3, 2])
@@ -554,9 +578,10 @@ with col2:
     
     st.markdown("**Translation Options**")
     
-    # Add ChatGPT comparison toggle
-    enable_chatgpt = st.checkbox("🤖 Enable ChatGPT Comparison", 
-                                help="Get ChatGPT translation for quality comparison")
+    # Enable/disable ChatGPT quality checking
+    enable_chatgpt_qa = st.checkbox("🤖 Enable ChatGPT Quality Enhancement", 
+                                   value=True,
+                                   help="Use ChatGPT to review and improve Sarvam translation")
     
     col_gender, col_mode = st.columns(2)
     with col_gender:
@@ -565,11 +590,11 @@ with col2:
         mode_ui = st.selectbox("Style:", list(MODE_OPTIONS.keys()), index=3)  # Default to Blended
 
 # Translate button
-if st.button("🔄 Translate with Enhanced Quality", type="primary", use_container_width=True):
+if st.button("🔄 Translate with AI Quality Enhancement", type="primary", use_container_width=True):
     if not text.strip():
         st.warning("Please enter text to translate.")
     else:
-        with st.spinner("Translating with issue-specific optimizations..."):
+        with st.spinner("Step 1/2: Getting Sarvam translation..."):
             src = LANG_MAP[source_ui]
             tgt = LANG_MAP[target_ui]
             selected_mode = MODE_OPTIONS[mode_ui]
@@ -580,140 +605,137 @@ if st.button("🔄 Translate with Enhanced Quality", type="primary", use_contain
                 context_type, audience, formality_level
             )
             
-            # Get ChatGPT translation if enabled
-            chatgpt_result = None
-            chatgpt_error = None
-            if enable_chatgpt:
-                with st.spinner("Getting ChatGPT comparison..."):
-                    chatgpt_result, chatgpt_error = get_chatgpt_translation(text.strip(), tgt, src)
-            
-            # Store results
-            st.session_state.last_translation = sarvam_result
-            st.session_state.chatgpt_translation = chatgpt_result
-            st.session_state.chatgpt_error = chatgpt_error
-            st.session_state.original_text = text
-            st.session_state.source_lang = source_ui
-            st.session_state.target_lang_ui = target_ui
-            st.session_state.enable_chatgpt = enable_chatgpt
+            # Calculate initial confidence
+            initial_quality_flags, initial_confidence = analyze_translation_quality(
+                text.strip(), sarvam_result, src, tgt
+            )
+        
+        # ChatGPT Quality Enhancement
+        final_translation = sarvam_result
+        gpt_error = None
+        gpt_status = "Disabled"
+        
+        if enable_chatgpt_qa and not sarvam_result.startswith("❌"):
+            with st.spinner("Step 2/2: ChatGPT quality enhancement..."):
+                final_translation, gpt_error = chatgpt_quality_check_and_improve(
+                    text.strip(), sarvam_result, tgt, selected_mode, 
+                    context_type, audience, formality_level
+                )
+                gpt_status = "Enhanced" if not gpt_error else f"Error: {gpt_error}"
+        
+        # Calculate final confidence
+        final_quality_flags, final_confidence = analyze_translation_quality(
+            text.strip(), final_translation, src, tgt
+        )
+        
+        # Store results
+        st.session_state.sarvam_translation = sarvam_result
+        st.session_state.final_translation = final_translation
+        st.session_state.gpt_status = gpt_status
+        st.session_state.gpt_error = gpt_error
+        st.session_state.original_text = text
+        st.session_state.source_lang = source_ui
+        st.session_state.target_lang_ui = target_ui
+        st.session_state.initial_confidence = initial_confidence
+        st.session_state.final_confidence = final_confidence
+        st.session_state.initial_quality_flags = initial_quality_flags
+        st.session_state.final_quality_flags = final_quality_flags
 
-# Display results with enhanced quality analysis
-if 'last_translation' in st.session_state:
+# Display results
+if 'final_translation' in st.session_state:
     st.divider()
     st.subheader("📋 Translation Results")
     
-    # Create columns for side-by-side comparison if ChatGPT is enabled
-    if st.session_state.get('enable_chatgpt', False) and st.session_state.get('chatgpt_translation'):
-        col_sarvam, col_chatgpt = st.columns(2)
+    # Show process steps
+    col_process1, col_process2, col_process3 = st.columns(3)
+    with col_process1:
+        st.info("**Step 1**: Sarvam Translation ✅")
+    with col_process2:
+        gpt_status = st.session_state.get('gpt_status', 'Disabled')
+        if gpt_status == "Enhanced":
+            st.success("**Step 2**: ChatGPT Enhanced ✅")
+        elif gpt_status == "Disabled":
+            st.warning("**Step 2**: ChatGPT Disabled")
+        else:
+            st.error(f"**Step 2**: {gpt_status}")
+    with col_process3:
+        final_conf = st.session_state.get('final_confidence', 0)
+        if final_conf >= 0.8:
+            st.success("**Quality**: Excellent ✅")
+        elif final_conf >= 0.7:
+            st.info("**Quality**: Good 📊")
+        else:
+            st.error("**Quality**: Needs Review ⚠️")
+    
+    # Show translations
+    if st.session_state.get('gpt_status') == "Enhanced":
+        # Show before/after comparison
+        col_before, col_after = st.columns(2)
         
-        with col_sarvam:
-            st.markdown("### 🎯 Sarvam Translation")
-            sarvam_result = st.session_state.last_translation
-            st.text_area("Sarvam Output:", value=sarvam_result, height=120, key="sarvam_output")
+        with col_before:
+            st.markdown("### 🎯 Initial Sarvam Translation")
+            st.text_area("Sarvam Output:", value=st.session_state.sarvam_translation, height=120, key="sarvam_output")
+            initial_conf = st.session_state.get('initial_confidence', 0)
+            if initial_conf >= 0.8:
+                st.success(f"Initial Confidence: {initial_conf:.1%}")
+            elif initial_conf >= 0.7:
+                st.info(f"Initial Confidence: {initial_conf:.1%}")
+            else:
+                st.error(f"Initial Confidence: {initial_conf:.1%}")
             
-        with col_chatgpt:
-            st.markdown("### 🤖 ChatGPT Translation")
-            chatgpt_result = st.session_state.chatgpt_translation
-            st.text_area("ChatGPT Output:", value=chatgpt_result, height=120, key="chatgpt_output")
+        with col_after:
+            st.markdown("### ✨ ChatGPT Enhanced Translation")
+            st.text_area("Final Output:", value=st.session_state.final_translation, height=120, key="final_output")
+            final_conf = st.session_state.get('final_confidence', 0)
+            if final_conf >= 0.8:
+                st.success(f"Final Confidence: {final_conf:.1%}")
+            elif final_conf >= 0.7:
+                st.info(f"Final Confidence: {final_conf:.1%}")
+            else:
+                st.error(f"Final Confidence: {final_conf:.1%}")
     else:
         # Single translation display
-        sarvam_result = st.session_state.last_translation
-        st.text_area("Sarvam Translation:", value=sarvam_result, height=150)
+        st.markdown("### 🎯 Final Translation")
+        st.text_area("Translation Result:", value=st.session_state.final_translation, height=150, key="translation_output")
         
-        # Show ChatGPT error if any
-        if st.session_state.get('enable_chatgpt', False) and st.session_state.get('chatgpt_error'):
-            st.error(f"ChatGPT Error: {st.session_state.chatgpt_error}")
+        # Show any ChatGPT errors
+        if st.session_state.get('gpt_error'):
+            st.warning(f"ChatGPT Quality Check: {st.session_state.gpt_error}")
     
-    # Quality Analysis
-    if not sarvam_result.startswith("❌"):
-        # Calculate confidence scores
-        sarvam_quality_flags, sarvam_confidence = analyze_translation_quality(
-            st.session_state.original_text, 
-            sarvam_result, 
-            LANG_MAP[st.session_state.source_lang], 
-            LANG_MAP[st.session_state.target_lang_ui]
-        )
+    # Overall Quality Analysis
+    if not st.session_state.final_translation.startswith("❌"):
+        st.subheader("📊 Overall Quality Assessment")
         
-        # Calculate ChatGPT confidence if available
-        chatgpt_confidence = 0.0
-        if st.session_state.get('chatgpt_translation'):
-            chatgpt_confidence = calculate_chatgpt_confidence(
-                st.session_state.original_text,
-                st.session_state.chatgpt_translation,
-                LANG_MAP[st.session_state.target_lang_ui]
-            )
+        final_conf = st.session_state.get('final_confidence', 0)
+        initial_conf = st.session_state.get('initial_confidence', 0)
         
-        # Display confidence scores
-        st.subheader("🎯 Translation Quality Comparison")
-        
-        if st.session_state.get('chatgpt_translation'):
-            col_sarvam_conf, col_chatgpt_conf = st.columns(2)
-            
-            with col_sarvam_conf:
-                st.markdown("**Sarvam Confidence**")
-                if sarvam_confidence >= 0.8:
-                    st.success(f"✅ {sarvam_confidence:.1%}")
-                elif sarvam_confidence >= 0.7:
-                    st.info(f"📊 {sarvam_confidence:.1%}")
-                else:
-                    st.error(f"⚠️ {sarvam_confidence:.1%}")
-            
-            with col_chatgpt_conf:
-                st.markdown("**ChatGPT Confidence**")
-                if chatgpt_confidence >= 0.8:
-                    st.success(f"✅ {chatgpt_confidence:.1%}")
-                elif chatgpt_confidence >= 0.7:
-                    st.info(f"📊 {chatgpt_confidence:.1%}")
-                else:
-                    st.error(f"⚠️ {chatgpt_confidence:.1%}")
-            
-            # Winner indication
-            st.markdown("---")
-            if sarvam_confidence > chatgpt_confidence:
-                st.success("🏆 **Sarvam wins this round!**")
-            elif chatgpt_confidence > sarvam_confidence:
-                st.info("🏆 **ChatGPT wins this round!**")
-            else:
-                st.warning("🤝 **It's a tie!**")
-                
-        else:
-            # Single confidence display
-            if sarvam_confidence >= 0.8:
-                st.success(f"✅ Sarvam Confidence: {sarvam_confidence:.1%}")
-            elif sarvam_confidence >= 0.7:
-                st.info(f"📊 Sarvam Confidence: {sarvam_confidence:.1%}")
-            else:
-                st.error(f"⚠️ Sarvam Confidence: {sarvam_confidence:.1%}")
-                st.error("🚨 **REVIEW REQUIRED** - Translation may need manual review")
+        # Show confidence improvement
+        col_conf1, col_conf2, col_conf3 = st.columns(3)
+        with col_conf1:
+            st.metric("Initial Confidence", f"{initial_conf:.1%}")
+        with col_conf2:
+            st.metric("Final Confidence", f"{final_conf:.1%}", f"{final_conf - initial_conf:.1%}")
+        with col_conf3:
+            improvement = "Enhanced" if final_conf > initial_conf else "Maintained" if final_conf == initial_conf else "Degraded"
+            improvement_color = "normal" if improvement == "Maintained" else "inverse" if improvement == "Enhanced" else "off"
+            st.metric("Quality Status", improvement, delta_color=improvement_color)
         
         # Show quality flags if any
-        if sarvam_quality_flags:
-            st.subheader("🔍 Sarvam Quality Analysis")
-            for flag in sarvam_quality_flags:
+        final_quality_flags = st.session_state.get('final_quality_flags', [])
+        if final_quality_flags:
+            st.subheader("🔍 Quality Issues Detected")
+            for flag in final_quality_flags:
                 st.info(flag)
-        elif sarvam_confidence >= 0.7:
-            st.success("✅ Sarvam translation meets enhanced quality standards")
+        else:
+            if final_conf >= 0.7:
+                st.success("✅ Translation meets enhanced quality standards")
+            else:
+                st.warning("⚠️ Translation may need manual review")
     
     # Action buttons
     col_btn1, col_btn2, col_btn3 = st.columns(3)
     with col_btn1:
-        # Download the better translation
-        if st.session_state.get('chatgpt_translation'):
-            sarvam_conf = analyze_translation_quality(
-                st.session_state.original_text, 
-                st.session_state.last_translation, 
-                LANG_MAP[st.session_state.source_lang], 
-                LANG_MAP[st.session_state.target_lang_ui]
-            )[1]
-            chatgpt_conf = calculate_chatgpt_confidence(
-                st.session_state.original_text,
-                st.session_state.chatgpt_translation,
-                LANG_MAP[st.session_state.target_lang_ui]
-            )
-            better_translation = st.session_state.chatgpt_translation if chatgpt_conf > sarvam_conf else st.session_state.last_translation
-        else:
-            better_translation = st.session_state.last_translation
-            
-        st.download_button("📥 Download Best", better_translation, 
+        st.download_button("📥 Download Translation", st.session_state.final_translation, 
             file_name=f"translation_{st.session_state.target_lang_ui.lower()}.txt")
     with col_btn2:
         if st.button("🔄 Retranslate"):
@@ -721,21 +743,50 @@ if 'last_translation' in st.session_state:
     with col_btn3:
         if st.button("⭐ Mark as Approved"):
             st.success("Translation approved!")
+    
+    # Additional insights
+    if st.session_state.get('gpt_status') == "Enhanced":
+        with st.expander("🔍 Translation Process Details"):
+            st.markdown("""
+            **Process Completed:**
+            1. ✅ Sarvam provided initial translation with your exact context settings
+            2. ✅ ChatGPT reviewed the translation for quality issues
+            3. ✅ ChatGPT applied improvements while maintaining the same style and context
+            4. ✅ Final translation combines Sarvam's contextual accuracy with ChatGPT's quality refinement
+            
+            **Benefits:**
+            - Same language patterns and formality as specified
+            - Enhanced grammar and naturalness
+            - Consistent brand name handling
+            - Improved overall readability
+            """)
 
 # Help section
-with st.expander("ℹ️ Enhanced Features Guide"):
+with st.expander("ℹ️ AI Quality Enhancement Guide"):
     st.markdown("""
-    **Universal Optimizations**: 
-    - **Complete Translations**: Ensures all sentence parts are translated across all languages
-    - **Brand Protection**: Prevents formatting issues with FRND brand name in any language
-    - **Sentence Completion**: Advanced detection of incomplete translations
-    - **Catchy Phrase Enhancement**: Better translation of marketing phrases universally
-    - **Quality Detection**: Universal detection of common translation issues
+    **How AI Quality Enhancement Works:**
     
-    **Applied to All Languages**:
-    - **Hindi, Tamil, Telugu, Malayalam, Kannada**: All benefit from the same quality improvements
-    - **Consistent Quality**: Same high standards across all target languages
+    **Step 1: Sarvam Translation**
+    - Uses your exact language, context, and formality settings
+    - Applies brand protection and completeness optimizations
+    - Generates contextually accurate translation
+    
+    **Step 2: ChatGPT Quality Review** (if enabled)
+    - Reviews Sarvam translation for quality issues
+    - Maintains the exact same context settings and language patterns
+    - Only improves grammar, naturalness, and completeness
+    - Preserves the original translation approach and style
+    
+    **Final Result:**
+    - Best of both: Sarvam's contextual expertise + ChatGPT's quality refinement
+    - Single high-quality translation instead of competing versions
+    - Confidence score reflects overall translation quality
+    
+    **When to Use:**
+    - ✅ **Enable**: For important content requiring highest quality
+    - ⚠️ **Consider**: May slightly increase translation time
+    - 💡 **Benefit**: Significantly improved grammar and naturalness while maintaining context
     """)
 
 st.markdown("---")
-st.markdown("*FRND Enhanced Translator • Issue-Optimized Quality*")
+st.markdown("*FRND Enhanced Translator • AI-Powered Quality Assurance*")
