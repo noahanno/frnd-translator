@@ -151,8 +151,19 @@ def preprocess_input_for_completeness(text, target_lang):
 def fix_brand_name_issues(text, target_lang):
     """Fix brand name formatting issues across ALL languages"""
     
-    # Apply universal brand protection fixes
-    fixes = TRANSLATION_OPTIMIZATIONS["universal"]["brand_protection_fixes"]
+    # Apply universal brand protection fixes - more aggressive cleaning
+    fixes = {
+        r"\[\[\[+([^\[\]]*)\]\]\]+": r"\1",  # Remove triple brackets
+        r"\[\[+([^\[\]]*)\]\]+": r"\1",      # Remove double brackets
+        r"\[+([^\[\]]*)\]+": r"\1",          # Remove single brackets
+        r"\{\{\{+([^\{\}]*)\}\}\}+": r"\1",  # Remove triple braces
+        r"\{\{+([^\{\}]*)\}\}+": r"\1",      # Remove double braces
+        r"\{+([^\{\}]*)\}+": r"\1",          # Remove single braces
+        r"FRND\}+\]+": "FRND",               # Clean FRND}]]
+        r"Team\s*FRND\}+\]+": "Team FRND",   # Clean Team FRND}]]
+        r"\}+\]+": "",                       # Clean trailing }]]
+    }
+    
     for pattern, replacement in fixes.items():
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
     
@@ -329,32 +340,34 @@ def chatgpt_quality_check_and_improve(original_text, sarvam_translation, target_
     if not OPENAI_API_KEY or not sarvam_translation or sarvam_translation.startswith("❌"):
         return sarvam_translation, "No ChatGPT API key or invalid Sarvam translation"
     
+    # Pre-clean obvious issues in Sarvam translation before sending to ChatGPT
+    cleaned_sarvam = fix_brand_name_issues(sarvam_translation, target_lang)
+    cleaned_sarvam = fix_formatting_issues(cleaned_sarvam, target_lang)
+    
     # Build context instructions matching Sarvam settings
     language_context = get_language_context_for_gpt(target_lang, mode, context_type, audience, formality_level)
     
-    prompt = f"""You are a translation quality expert. Your task is to review and improve a translation while maintaining the EXACT same style, context, and formatting requirements.
+    prompt = f"""TASK: Fix and improve this translation while maintaining the exact same style and context.
 
-ORIGINAL ENGLISH TEXT:
-"{original_text}"
+ORIGINAL ENGLISH:
+{original_text}
 
-SARVAM TRANSLATION TO REVIEW:
-"{sarvam_translation}"
+TRANSLATION TO FIX:
+{cleaned_sarvam}
 
-REQUIRED TRANSLATION SETTINGS (MUST FOLLOW EXACTLY):
+REQUIREMENTS:
 {language_context}
 
-IMPORTANT INSTRUCTIONS:
-1. Preserve brand names like "FRND", "Team FRND" exactly as they are
-2. Maintain the exact script style (Roman/Native) as shown in the Sarvam translation
-3. Keep the same level of English code-mixing as the original translation
-4. Preserve the same formality level and tone
-5. Only make improvements if there are clear issues (incomplete sentences, grammar errors, unnatural phrasing)
-6. If the Sarvam translation is already good, return it unchanged
-7. Do not change the overall approach - just refine if needed
+CRITICAL RULES:
+1. Fix any bracket issues around brand names (FRND}]], Team FRND}]] should be FRND, Team FRND)
+2. Complete any incomplete sentences
+3. Fix grammar errors while keeping the same language mixing style
+4. Keep exact same script (Roman/Native) and formality level
+5. Preserve all emojis and formatting
+6. DO NOT add explanations or comments
+7. ONLY return the corrected translation text
 
-TASK: Review the Sarvam translation for quality issues and provide the improved version. If no improvements needed, return the original translation exactly as is.
-
-IMPROVED TRANSLATION:"""
+CORRECTED TRANSLATION:"""
 
     try:
         headers = {
@@ -365,11 +378,11 @@ IMPROVED TRANSLATION:"""
         payload = {
             "model": "gpt-3.5-turbo",
             "messages": [
-                {"role": "system", "content": "You are a translation quality expert specializing in maintaining consistency while improving quality."},
+                {"role": "system", "content": "You are a translation editor. Return ONLY the corrected translation text with no explanations or comments."},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 800,
-            "temperature": 0.1  # Low temperature for consistency
+            "max_tokens": 1000,
+            "temperature": 0.1
         }
         
         response = requests.post("https://api.openai.com/v1/chat/completions", 
@@ -382,22 +395,46 @@ IMPROVED TRANSLATION:"""
             if "choices" in result and len(result["choices"]) > 0:
                 improved_translation = result["choices"][0]["message"]["content"].strip()
                 
-                # Clean any potential ChatGPT additions
-                improved_translation = re.sub(r'^(IMPROVED TRANSLATION:|Translation:|Final Translation:)\s*', '', improved_translation, flags=re.IGNORECASE)
+                # Aggressive cleaning of ChatGPT meta-responses
+                # Remove any explanatory text that ChatGPT might add
+                meta_patterns = [
+                    r'^(CORRECTED TRANSLATION|IMPROVED TRANSLATION|FIXED TRANSLATION|Translation|Final Translation|Here is the corrected translation|The corrected translation is):\s*',
+                    r'The.*?translation.*?is.*?already.*?good.*?\.',
+                    r'No improvements.*?needed.*?\.',
+                    r'The Sarvam translation.*?is.*?already.*?\.',
+                    r'This translation.*?meets.*?requirements.*?\.',
+                ]
+                
+                for pattern in meta_patterns:
+                    improved_translation = re.sub(pattern, '', improved_translation, flags=re.IGNORECASE | re.DOTALL)
+                
                 improved_translation = improved_translation.strip()
+                
+                # If ChatGPT returned explanatory text instead of translation, use cleaned Sarvam
+                explanatory_phrases = [
+                    "already in line with", "no improvements needed", "meets the requirements",
+                    "is already good", "no changes required", "translation provided is"
+                ]
+                
+                if any(phrase.lower() in improved_translation.lower() for phrase in explanatory_phrases):
+                    improved_translation = cleaned_sarvam
+                
+                # Final cleanup
+                improved_translation = fix_brand_name_issues(improved_translation, target_lang)
+                improved_translation = fix_formatting_issues(improved_translation, target_lang)
                 
                 return improved_translation, None
             else:
-                return sarvam_translation, "No response from ChatGPT"
+                return cleaned_sarvam, "No response from ChatGPT"
         else:
-            return sarvam_translation, f"ChatGPT API Error: {response.status_code}"
+            return cleaned_sarvam, f"ChatGPT API Error: {response.status_code}"
             
     except requests.exceptions.Timeout:
-        return sarvam_translation, "ChatGPT timeout - using Sarvam translation"
+        return cleaned_sarvam, "ChatGPT timeout - using cleaned Sarvam translation"
     except requests.exceptions.ConnectionError:
-        return sarvam_translation, "Connection error - using Sarvam translation"
+        return cleaned_sarvam, "Connection error - using cleaned Sarvam translation"
     except Exception as e:
-        return sarvam_translation, f"ChatGPT error: {str(e)}"
+        return cleaned_sarvam, f"ChatGPT error: {str(e)}"
 
 def analyze_translation_quality(original, translated, source_lang, target_lang):
     """Enhanced quality analysis with universal issue detection"""
