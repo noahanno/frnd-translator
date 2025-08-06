@@ -359,7 +359,7 @@ REQUIREMENTS:
 {language_context}
 
 CRITICAL RULES:
-1. Fix any bracket issues around brand names (FRND}]], Team FRND}]] should be FRND, Team FRND)
+1. Fix any bracket issues around brand names (FRND}}]], Team FRND}}]] should be FRND, Team FRND)
 2. Complete any incomplete sentences
 3. Fix grammar errors while keeping the same language mixing style
 4. Keep exact same script (Roman/Native) and formality level
