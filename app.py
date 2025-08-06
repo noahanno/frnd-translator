@@ -162,10 +162,14 @@ def fix_brand_name_issues(text, target_lang):
         r"FRND\}+\]+": "FRND",               # Clean FRND}]]
         r"Team\s*FRND\}+\]+": "Team FRND",   # Clean Team FRND}]]
         r"\}+\]+": "",                       # Clean trailing }]]
+        r"^\]+,?\s*": "",                    # Clean leading ]], or ]],
+        r"\]+,\s*": "",                      # Clean ]], anywhere
+        r"\]+\s*": "",                       # Clean trailing ]]
+        r"^\s*,\s*": "",                     # Clean leading comma after bracket removal
     }
     
     for pattern, replacement in fixes.items():
-        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE | re.MULTILINE)
     
     return text
 
@@ -183,6 +187,18 @@ def fix_formatting_issues(text, target_lang):
     
     for pattern in instruction_patterns:
         text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.MULTILINE)
+    
+    # Clean remaining bracket artifacts
+    bracket_artifacts = [
+        r'^\]+,?\s*',      # Leading ]], or ]],
+        r'\]+,\s*',        # ]], anywhere in text
+        r'\]+\s*',         # Any trailing ]]
+        r'^\s*,\s*',       # Leading comma after cleanup
+        r',\s*,\s*',       # Double commas
+    ]
+    
+    for pattern in bracket_artifacts:
+        text = re.sub(pattern, '', text, flags=re.MULTILINE)
     
     # General formatting cleanup
     text = re.sub(r'\s+', ' ', text)                # Clean extra spaces
