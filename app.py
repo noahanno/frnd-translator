@@ -38,12 +38,17 @@ def log_translation_to_csv(input_lang, output_lang, input_text, output_text):
         filename = get_csv_filename()
         initialize_csv_file()
         
+        # Preserve line breaks in CSV by replacing newlines with a safe marker
+        # This ensures proper formatting when opened in Excel
+        input_text_safe = input_text.replace('\n', ' | ').replace('\r', '') if input_text else ""
+        output_text_safe = output_text.replace('\n', ' | ').replace('\r', '') if output_text else ""
+        
         # Prepare new row
         new_row = [
             input_lang,
             output_lang,
-            input_text,
-            output_text if output_text else ""
+            input_text_safe,
+            output_text_safe
         ]
         
         # Append to CSV
@@ -302,26 +307,44 @@ def restore_multiline_output(translated_text, original_text):
         translated_lines = translated_text.split(line_separator)
         return "\n".join(translated_lines)
     
-    # If that fails, try to detect natural breaking points
+    # If that fails, try to detect natural breaking points based on emojis and bullet points
     elif len(original_lines) > 1:
+        # Enhanced patterns for better line break detection
         sentence_patterns = [
-            r'(?<=[.।!?❌])\s+',
-            r'(?<=[💪🚨🎧🌙💰🔘])\s+',
-            r'(?<=[?!।])\s*',
+            r'(?<=[.।!?❌])\s+(?=[🚫🚨🔗📱📲✅💙—•])',  # Break before emojis
+            r'(?<=[🚫])\s+(?=[A-Z])',  # Break after alert emoji before caps
+            r'(?<=[💙])\s+(?=[—])',    # Break before Team signature
+            r'(?<=hai\.)\s+(?=[🚨])',  # Break after sentence before emoji
+            r'(?<=hain\.)\s+(?=[A-Z🚨])',  # Break after sentence
+            r'(?<=[📱📲])\s+(?=[✅])',  # Break between bullet points and checkmark
+            r'(?<=hai\.)\s+(?=[A-Z])',  # General sentence breaks
         ]
         
+        # Try each pattern
         for pattern in sentence_patterns:
-            sentences = re.split(pattern, translated_text.strip())
-            if len(sentences) >= len(original_lines):
-                lines_per_group = max(1, len(sentences) // len(original_lines))
-                result_lines = []
-                
-                for i in range(0, len(sentences), lines_per_group):
-                    group = sentences[i:i + lines_per_group]
-                    result_lines.append(" ".join(group))
-                
-                if len(result_lines) >= len(original_lines):
-                    return "\n".join(result_lines[:len(original_lines)])
+            potential_lines = re.split(pattern, translated_text.strip())
+            if len(potential_lines) >= 2:
+                return "\n".join(potential_lines)
+        
+        # Fallback: Split by emojis that typically start new lines
+        emoji_break_pattern = r'(?<=[.।!?])\s+(?=[🚫🚨✅💙—])'
+        lines = re.split(emoji_break_pattern, translated_text.strip())
+        if len(lines) > 1:
+            return "\n".join(lines)
+        
+        # Final fallback: Try to match original line count
+        sentences = re.split(r'(?<=[.।!?])\s+', translated_text.strip())
+        if len(sentences) >= len(original_lines):
+            # Group sentences to match original line structure
+            lines_per_group = max(1, len(sentences) // len(original_lines))
+            result_lines = []
+            
+            for i in range(0, len(sentences), lines_per_group):
+                group = sentences[i:i + lines_per_group]
+                result_lines.append(" ".join(group))
+            
+            if len(result_lines) >= len(original_lines):
+                return "\n".join(result_lines[:len(original_lines)])
     
     return translated_text
 
