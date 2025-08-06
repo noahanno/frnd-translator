@@ -4,11 +4,6 @@ from dotenv import load_dotenv
 import requests
 import re
 import emoji
-import pandas as pd
-from datetime import datetime
-import openpyxl
-from openpyxl import Workbook
-from pathlib import Path
 
 # Load environment variables
 load_dotenv()
@@ -16,96 +11,6 @@ API_KEY = os.getenv("SARVAM_API_KEY", st.secrets.get("SARVAM_API_KEY", ""))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", ""))
 
 st.set_page_config(page_title="FRND Quality Translator", layout="wide")
-
-# -------------------- EXCEL LOGGING FUNCTIONS -------------------- #
-
-def get_excel_filename():
-    """Get the Excel filename for logging translations"""
-    return "translation_logs.xlsx"
-
-def initialize_excel_file():
-    """Initialize Excel file with headers if it doesn't exist"""
-    filename = get_excel_filename()
-    
-    if not os.path.exists(filename):
-        # Create new workbook with headers
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Translation Logs"
-        
-        # Set headers
-        headers = ["Timestamp", "Input Language", "Output Language", "Input Text", "Output Text", "Translation Type", "Confidence Score"]
-        for col, header in enumerate(headers, 1):
-            ws.cell(row=1, column=col, value=header)
-        
-        # Auto-adjust column widths
-        ws.column_dimensions['A'].width = 20  # Timestamp
-        ws.column_dimensions['B'].width = 15  # Input Lang
-        ws.column_dimensions['C'].width = 15  # Output Lang
-        ws.column_dimensions['D'].width = 50  # Input Text
-        ws.column_dimensions['E'].width = 50  # Output Text
-        ws.column_dimensions['F'].width = 15  # Translation Type
-        ws.column_dimensions['G'].width = 15  # Confidence Score
-        
-        wb.save(filename)
-        return True
-    return False
-
-def log_translation_to_excel(input_lang, output_lang, input_text, output_text, translation_type="Sarvam", confidence_score=None):
-    """Log translation to Excel file"""
-    try:
-        filename = get_excel_filename()
-        initialize_excel_file()
-        
-        # Read existing data
-        try:
-            df = pd.read_excel(filename)
-        except:
-            # If file is corrupted or doesn't exist, create new one
-            df = pd.DataFrame(columns=["Timestamp", "Input Language", "Output Language", "Input Text", "Output Text", "Translation Type", "Confidence Score"])
-        
-        # Prepare new row
-        new_row = {
-            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Input Language": input_lang,
-            "Output Language": output_lang,
-            "Input Text": input_text,  # No character limit
-            "Output Text": output_text if output_text else "",  # No character limit
-            "Translation Type": translation_type,
-            "Confidence Score": f"{confidence_score:.1%}" if confidence_score else ""
-        }
-        
-        # Add new row to dataframe
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-        
-        # Save back to Excel
-        df.to_excel(filename, index=False, engine='openpyxl')
-        
-        return True, None
-        
-    except Exception as e:
-        return False, str(e)
-
-def get_translation_stats():
-    """Get translation statistics from Excel file"""
-    try:
-        filename = get_excel_filename()
-        if not os.path.exists(filename):
-            return None
-            
-        df = pd.read_excel(filename)
-        
-        stats = {
-            "total_translations": len(df),
-            "languages_used": df["Output Language"].nunique(),
-            "most_common_target": df["Output Language"].mode().iloc[0] if len(df) > 0 else "N/A",
-            "today_translations": len(df[df["Timestamp"].str.contains(datetime.now().strftime("%Y-%m-%d"))]) if len(df) > 0 else 0
-        }
-        
-        return stats
-        
-    except Exception as e:
-        return None
 
 # -------------------- CONFIG -------------------- #
 LANG_MAP = {
@@ -512,22 +417,6 @@ def analyze_translation_quality(original, translated, source_lang, target_lang):
     
     return quality_flags, confidence
 
-def check_cultural_sensitivity(text, target_lang):
-    """Check for potentially sensitive content"""
-    warnings = []
-    text_lower = text.lower()
-    
-    if any(word in text_lower for word in ["pork", "beef", "alcohol"]):
-        warnings.append("🔍 Contains potentially sensitive content - please review cultural appropriateness")
-    
-    if any(word in text_lower for word in ["christmas", "diwali", "eid", "holi"]):
-        warnings.append("📅 Contains festival references - ensure timing is appropriate")
-    
-    if any(word in text_lower for word in ["loan", "debt", "payment", "money"]):
-        warnings.append("💰 Contains financial terms - ensure compliance with regulations")
-    
-    return warnings
-
 def translate_text(text, source_lang, target_lang, gender, mode, context_type="", audience="", formality_level=3):
     # Get language-specific settings
     lang_pattern = get_language_specific_settings(target_lang)
@@ -594,35 +483,25 @@ def translate_text(text, source_lang, target_lang, gender, mode, context_type=""
     else:
         return f"❌ Error: {response.status_code} - {response.text}"
 
+def check_cultural_sensitivity(text, target_lang):
+    """Check for potentially sensitive content"""
+    warnings = []
+    text_lower = text.lower()
+    
+    if any(word in text_lower for word in ["pork", "beef", "alcohol"]):
+        warnings.append("🔍 Contains potentially sensitive content - please review cultural appropriateness")
+    
+    if any(word in text_lower for word in ["christmas", "diwali", "eid", "holi"]):
+        warnings.append("📅 Contains festival references - ensure timing is appropriate")
+    
+    if any(word in text_lower for word in ["loan", "debt", "payment", "money"]):
+        warnings.append("💰 Contains financial terms - ensure compliance with regulations")
+    
+    return warnings
+
 # -------------------- STREAMLIT UI -------------------- #
 st.title("🎯 FRND Enhanced Translator")
-st.markdown("*Issue-optimized translations with smart corrections and Excel logging*")
-
-# Initialize Excel file on startup
-initialize_excel_file()
-
-# Translation statistics in sidebar
-with st.sidebar:
-    st.subheader("📊 Translation Stats")
-    stats = get_translation_stats()
-    if stats:
-        st.metric("Total Translations", stats["total_translations"])
-        st.metric("Today's Translations", stats["today_translations"])
-        st.metric("Languages Used", stats["languages_used"])
-        st.metric("Most Popular Target", stats["most_common_target"])
-    else:
-        st.info("No translations logged yet")
-    
-    # Download Excel file
-    excel_file = get_excel_filename()
-    if os.path.exists(excel_file):
-        with open(excel_file, "rb") as file:
-            st.download_button(
-                label="📥 Download Translation Logs",
-                data=file.read(),
-                file_name=excel_file,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+st.markdown("*Issue-optimized translations with smart corrections*")
 
 # Quality improvements info
 with st.expander("🔧 Universal Quality Improvements"):
@@ -632,8 +511,8 @@ with st.expander("🔧 Universal Quality Improvements"):
     - 🔧 **Brand Protection**: Automatic removal of brackets around FRND, Team FRND across all languages
     - 📝 **Sentence Completion**: Enhanced detection and prevention of missing sentences
     - 🎨 **Catchy Phrase Enhancement**: Better translation of marketing phrases across all languages
-    - 📊 **Excel Logging**: All translations automatically logged with timestamp and confidence scores
     """)
+
 
 # Main content area
 col1, col2 = st.columns([3, 2])
@@ -701,39 +580,12 @@ if st.button("🔄 Translate with Enhanced Quality", type="primary", use_contain
                 context_type, audience, formality_level
             )
             
-            # Calculate confidence for Sarvam
-            sarvam_quality_flags, sarvam_confidence = analyze_translation_quality(
-                text.strip(), sarvam_result, src, tgt
-            )
-            
-            # Log Sarvam translation to Excel
-            if not sarvam_result.startswith("❌"):
-                log_success, log_error = log_translation_to_excel(
-                    source_ui, target_ui, text.strip(), sarvam_result, 
-                    "Sarvam", sarvam_confidence
-                )
-                if not log_success:
-                    st.warning(f"Failed to log to Excel: {log_error}")
-            
             # Get ChatGPT translation if enabled
             chatgpt_result = None
             chatgpt_error = None
-            chatgpt_confidence = 0.0
             if enable_chatgpt:
                 with st.spinner("Getting ChatGPT comparison..."):
                     chatgpt_result, chatgpt_error = get_chatgpt_translation(text.strip(), tgt, src)
-                    if chatgpt_result:
-                        chatgpt_confidence = calculate_chatgpt_confidence(
-                            text.strip(), chatgpt_result, tgt
-                        )
-                        
-                        # Only log ChatGPT translation if ChatGPT is enabled
-                        log_success, log_error = log_translation_to_excel(
-                            source_ui, target_ui, text.strip(), chatgpt_result, 
-                            "ChatGPT", chatgpt_confidence
-                        )
-                        if not log_success:
-                            st.warning(f"Failed to log ChatGPT to Excel: {log_error}")
             
             # Store results
             st.session_state.last_translation = sarvam_result
@@ -743,17 +595,11 @@ if st.button("🔄 Translate with Enhanced Quality", type="primary", use_contain
             st.session_state.source_lang = source_ui
             st.session_state.target_lang_ui = target_ui
             st.session_state.enable_chatgpt = enable_chatgpt
-            st.session_state.sarvam_confidence = sarvam_confidence
-            st.session_state.chatgpt_confidence = chatgpt_confidence
 
 # Display results with enhanced quality analysis
 if 'last_translation' in st.session_state:
     st.divider()
     st.subheader("📋 Translation Results")
-    
-    # Show logging status
-    if not st.session_state.last_translation.startswith("❌"):
-        st.success("✅ Translation logged to Excel successfully!")
     
     # Create columns for side-by-side comparison if ChatGPT is enabled
     if st.session_state.get('enable_chatgpt', False) and st.session_state.get('chatgpt_translation'):
@@ -779,17 +625,22 @@ if 'last_translation' in st.session_state:
     
     # Quality Analysis
     if not sarvam_result.startswith("❌"):
-        # Get stored confidence scores
-        sarvam_confidence = st.session_state.get('sarvam_confidence', 0.0)
-        chatgpt_confidence = st.session_state.get('chatgpt_confidence', 0.0)
-        
-        # Calculate quality flags for Sarvam
-        sarvam_quality_flags, _ = analyze_translation_quality(
+        # Calculate confidence scores
+        sarvam_quality_flags, sarvam_confidence = analyze_translation_quality(
             st.session_state.original_text, 
             sarvam_result, 
             LANG_MAP[st.session_state.source_lang], 
             LANG_MAP[st.session_state.target_lang_ui]
         )
+        
+        # Calculate ChatGPT confidence if available
+        chatgpt_confidence = 0.0
+        if st.session_state.get('chatgpt_translation'):
+            chatgpt_confidence = calculate_chatgpt_confidence(
+                st.session_state.original_text,
+                st.session_state.chatgpt_translation,
+                LANG_MAP[st.session_state.target_lang_ui]
+            )
         
         # Display confidence scores
         st.subheader("🎯 Translation Quality Comparison")
@@ -847,8 +698,17 @@ if 'last_translation' in st.session_state:
     with col_btn1:
         # Download the better translation
         if st.session_state.get('chatgpt_translation'):
-            sarvam_conf = st.session_state.get('sarvam_confidence', 0.0)
-            chatgpt_conf = st.session_state.get('chatgpt_confidence', 0.0)
+            sarvam_conf = analyze_translation_quality(
+                st.session_state.original_text, 
+                st.session_state.last_translation, 
+                LANG_MAP[st.session_state.source_lang], 
+                LANG_MAP[st.session_state.target_lang_ui]
+            )[1]
+            chatgpt_conf = calculate_chatgpt_confidence(
+                st.session_state.original_text,
+                st.session_state.chatgpt_translation,
+                LANG_MAP[st.session_state.target_lang_ui]
+            )
             better_translation = st.session_state.chatgpt_translation if chatgpt_conf > sarvam_conf else st.session_state.last_translation
         else:
             better_translation = st.session_state.last_translation
@@ -871,14 +731,6 @@ with st.expander("ℹ️ Enhanced Features Guide"):
     - **Sentence Completion**: Advanced detection of incomplete translations
     - **Catchy Phrase Enhancement**: Better translation of marketing phrases universally
     - **Quality Detection**: Universal detection of common translation issues
-    - **Excel Logging**: Automatic logging of all translations with metadata
-    
-    **Excel Log Format**:
-    - **Timestamp**: When translation was made
-    - **Input/Output Language**: Source and target languages
-    - **Input/Output Text**: Original and translated text (unlimited length)
-    - **Translation Type**: Sarvam (always logged), ChatGPT (only if comparison enabled)
-    - **Confidence Score**: Quality assessment percentage
     
     **Applied to All Languages**:
     - **Hindi, Tamil, Telugu, Malayalam, Kannada**: All benefit from the same quality improvements
@@ -886,4 +738,4 @@ with st.expander("ℹ️ Enhanced Features Guide"):
     """)
 
 st.markdown("---")
-st.markdown("*FRND Enhanced Translator • Issue-Optimized Quality • Excel Logging*")
+st.markdown("*FRND Enhanced Translator • Issue-Optimized Quality*")
