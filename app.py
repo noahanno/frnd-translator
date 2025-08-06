@@ -172,7 +172,19 @@ def fix_brand_name_issues(text, target_lang):
 def fix_formatting_issues(text, target_lang):
     """Fix unnecessary spacing and cleanup across ALL languages"""
     
-    # General formatting cleanup only (no bold text removal)
+    # Clean leaked instructions first
+    instruction_patterns = [
+        r'\[translate from:.*?\]\s*',
+        r'\[.*?translate.*?from.*?\]\s*',
+        r'^\[.*?\]\s*',  # Any leading bracketed instructions
+        r'\[INST.*?\]\s*',
+        r'\[INSTRUCTION.*?\]\s*',
+    ]
+    
+    for pattern in instruction_patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.MULTILINE)
+    
+    # General formatting cleanup
     text = re.sub(r'\s+', ' ', text)                # Clean extra spaces
     text = text.strip()                             # Remove leading/trailing spaces
     
@@ -522,10 +534,13 @@ def translate_text(text, source_lang, target_lang, gender, mode, context_type=""
         result = restore_multiline_output(result, text)
         
         # ENHANCED OUTPUT POST-PROCESSING
-        # 1. Clean leaked instructions
-        result = re.sub(r'\[INSTRUCTION:.*?\]\s*', '', result)
-        result = re.sub(r'\[INST:.*?\]\s*', '', result)
-        result = re.sub(r'\[Translate completely including:.*?\]\s*', '', result)
+        # 1. Clean leaked instructions - more comprehensive patterns
+        result = re.sub(r'\[INSTRUCTION:.*?\]\s*', '', result, flags=re.IGNORECASE)
+        result = re.sub(r'\[INST:.*?\]\s*', '', result, flags=re.IGNORECASE)
+        result = re.sub(r'\[Translate completely including:.*?\]\s*', '', result, flags=re.IGNORECASE)
+        result = re.sub(r'\[translate from:.*?\]\s*', '', result, flags=re.IGNORECASE)  # New pattern
+        result = re.sub(r'\[.*?translate.*?from.*?\]\s*', '', result, flags=re.IGNORECASE)  # Broader pattern
+        result = re.sub(r'^\[.*?\]\s*', '', result, flags=re.MULTILINE)  # Any leading bracketed text
         
         # 2. Fix brand name issues
         result = fix_brand_name_issues(result, target_lang)
