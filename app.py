@@ -303,13 +303,14 @@ def get_chatgpt_translation(text, target_lang, source_lang="en-IN"):
 Keep the translation natural and engaging, preserving brand names like FRND, and maintain the style shown in the examples."""
 
     try:
+        # Updated headers and payload for current OpenAI API
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
             "Content-Type": "application/json"
         }
         
         payload = {
-            "model": "gpt-4",
+            "model": "gpt-3.5-turbo",  # Using cheaper model first
             "messages": [
                 {"role": "system", "content": "You are a professional translator specializing in Indian languages with natural code-mixing patterns."},
                 {"role": "user", "content": prompt}
@@ -318,20 +319,33 @@ Keep the translation natural and engaging, preserving brand names like FRND, and
             "temperature": 0.3
         }
         
+        # Correct OpenAI API endpoint
         response = requests.post("https://api.openai.com/v1/chat/completions", 
                                headers=headers, 
                                json=payload, 
                                timeout=30)
         
-        if response.status_code == 200:
+        # Debug information
+        if response.status_code != 200:
+            return None, f"OpenAI API Error: {response.status_code} - {response.text[:200]}"
+        
+        try:
             result = response.json()
+            if "choices" not in result or len(result["choices"]) == 0:
+                return None, f"No translation returned: {result}"
+            
             translation = result["choices"][0]["message"]["content"].strip()
             return translation, None
-        else:
-            return None, f"ChatGPT API Error: {response.status_code}"
             
+        except KeyError as ke:
+            return None, f"Response parsing error: {ke} - Response: {response.text[:200]}"
+            
+    except requests.exceptions.Timeout:
+        return None, "OpenAI API timeout - try again"
+    except requests.exceptions.ConnectionError:
+        return None, "Connection error - check internet"
     except Exception as e:
-        return None, f"ChatGPT Error: {str(e)}"
+        return None, f"Unexpected error: {str(e)}"
 
 def calculate_chatgpt_confidence(original, translated, target_lang):
     """Calculate confidence score for ChatGPT translation"""
