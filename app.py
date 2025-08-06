@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 import requests
 import re
 import emoji
+import pandas as pd
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -11,6 +13,53 @@ API_KEY = os.getenv("SARVAM_API_KEY", st.secrets.get("SARVAM_API_KEY", ""))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", ""))
 
 st.set_page_config(page_title="FRND Quality Translator", layout="wide")
+
+# -------------------- EXCEL LOGGING FUNCTIONS -------------------- #
+
+def get_excel_filename():
+    """Get the Excel filename for logging translations"""
+    return "translation_logs.xlsx"
+
+def initialize_excel_file():
+    """Initialize Excel file with headers if it doesn't exist"""
+    filename = get_excel_filename()
+    
+    if not os.path.exists(filename):
+        df = pd.DataFrame(columns=["Input Language", "Output Language", "Input Text", "Output Text"])
+        df.to_excel(filename, index=False, engine='openpyxl')
+        return True
+    return False
+
+def log_translation_to_excel(input_lang, output_lang, input_text, output_text):
+    """Log translation to Excel file"""
+    try:
+        filename = get_excel_filename()
+        initialize_excel_file()
+        
+        # Read existing data
+        try:
+            df = pd.read_excel(filename, engine='openpyxl')
+        except:
+            df = pd.DataFrame(columns=["Input Language", "Output Language", "Input Text", "Output Text"])
+        
+        # Prepare new row
+        new_row = {
+            "Input Language": input_lang,
+            "Output Language": output_lang,
+            "Input Text": input_text,
+            "Output Text": output_text if output_text else ""
+        }
+        
+        # Add new row to dataframe
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        
+        # Save back to Excel
+        df.to_excel(filename, index=False, engine='openpyxl')
+        
+        return True, None
+        
+    except Exception as e:
+        return False, str(e)
 
 # -------------------- CONFIG -------------------- #
 LANG_MAP = {
@@ -696,6 +745,14 @@ if st.button("🔄 Translate with AI Quality Enhancement", type="primary", use_c
             text.strip(), final_translation, src, tgt
         )
         
+        # Log translation to Excel
+        if not final_translation.startswith("❌"):
+            log_success, log_error = log_translation_to_excel(
+                source_ui, target_ui, text.strip(), final_translation
+            )
+            if not log_success:
+                st.warning(f"Failed to log to Excel: {log_error}")
+        
         # Store results
         st.session_state.sarvam_translation = sarvam_result
         st.session_state.final_translation = final_translation
@@ -806,11 +863,15 @@ if 'final_translation' in st.session_state:
         st.download_button("📥 Download Translation", st.session_state.final_translation, 
             file_name=f"translation_{st.session_state.target_lang_ui.lower()}.txt")
     with col_btn2:
+        # Download Excel logs
+        excel_file = get_excel_filename()
+        if os.path.exists(excel_file):
+            with open(excel_file, "rb") as file:
+                st.download_button("📊 Download Logs (Excel)", file.read(), 
+                    file_name="translation_logs.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    with col_btn3:
         if st.button("🔄 Retranslate"):
             st.rerun()
-    with col_btn3:
-        if st.button("⭐ Mark as Approved"):
-            st.success("Translation approved!")
     
     # Additional insights
     if st.session_state.get('gpt_status') == "Enhanced":
