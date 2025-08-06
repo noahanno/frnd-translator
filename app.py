@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import requests
 import re
 import emoji
-import pandas as pd
+import csv
 from datetime import datetime
 
 # Load environment variables
@@ -14,47 +14,42 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", ""
 
 st.set_page_config(page_title="FRND Quality Translator", layout="wide")
 
-# -------------------- EXCEL LOGGING FUNCTIONS -------------------- #
+# -------------------- CSV LOGGING FUNCTIONS -------------------- #
 
-def get_excel_filename():
-    """Get the Excel filename for logging translations"""
-    return "translation_logs.xlsx"
+def get_csv_filename():
+    """Get the CSV filename for logging translations"""
+    return "translation_logs.csv"
 
-def initialize_excel_file():
-    """Initialize Excel file with headers if it doesn't exist"""
-    filename = get_excel_filename()
+def initialize_csv_file():
+    """Initialize CSV file with headers if it doesn't exist"""
+    filename = get_csv_filename()
     
     if not os.path.exists(filename):
-        df = pd.DataFrame(columns=["Input Language", "Output Language", "Input Text", "Output Text"])
-        df.to_excel(filename, index=False, engine='openpyxl')
+        headers = ["Input Language", "Output Language", "Input Text", "Output Text"]
+        with open(filename, 'w', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            writer.writerow(headers)
         return True
     return False
 
-def log_translation_to_excel(input_lang, output_lang, input_text, output_text):
-    """Log translation to Excel file"""
+def log_translation_to_csv(input_lang, output_lang, input_text, output_text):
+    """Log translation to CSV file"""
     try:
-        filename = get_excel_filename()
-        initialize_excel_file()
-        
-        # Read existing data
-        try:
-            df = pd.read_excel(filename, engine='openpyxl')
-        except:
-            df = pd.DataFrame(columns=["Input Language", "Output Language", "Input Text", "Output Text"])
+        filename = get_csv_filename()
+        initialize_csv_file()
         
         # Prepare new row
-        new_row = {
-            "Input Language": input_lang,
-            "Output Language": output_lang,
-            "Input Text": input_text,
-            "Output Text": output_text if output_text else ""
-        }
+        new_row = [
+            input_lang,
+            output_lang,
+            input_text,
+            output_text if output_text else ""
+        ]
         
-        # Add new row to dataframe
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-        
-        # Save back to Excel
-        df.to_excel(filename, index=False, engine='openpyxl')
+        # Append to CSV
+        with open(filename, 'a', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            writer.writerow(new_row)
         
         return True, None
         
@@ -745,13 +740,13 @@ if st.button("🔄 Translate with AI Quality Enhancement", type="primary", use_c
             text.strip(), final_translation, src, tgt
         )
         
-        # Log translation to Excel
+        # Log translation to CSV
         if not final_translation.startswith("❌"):
-            log_success, log_error = log_translation_to_excel(
+            log_success, log_error = log_translation_to_csv(
                 source_ui, target_ui, text.strip(), final_translation
             )
             if not log_success:
-                st.warning(f"Failed to log to Excel: {log_error}")
+                st.warning(f"Failed to log to CSV: {log_error}")
         
         # Store results
         st.session_state.sarvam_translation = sarvam_result
