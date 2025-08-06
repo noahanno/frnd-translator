@@ -858,12 +858,12 @@ if 'final_translation' in st.session_state:
         st.download_button("📥 Download Translation", st.session_state.final_translation, 
             file_name=f"translation_{st.session_state.target_lang_ui.lower()}.txt")
     with col_btn2:
-        # Download Excel logs
-        excel_file = get_excel_filename()
-        if os.path.exists(excel_file):
-            with open(excel_file, "rb") as file:
+        # Download CSV logs (opens in Excel)
+        csv_file = get_csv_filename()
+        if os.path.exists(csv_file):
+            with open(csv_file, "rb") as file:
                 st.download_button("📊 Download Logs (Excel)", file.read(), 
-                    file_name="translation_logs.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    file_name="translation_logs.csv", mime="text/csv")
     with col_btn3:
         if st.button("🔄 Retranslate"):
             st.rerun()
