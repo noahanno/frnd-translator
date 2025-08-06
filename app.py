@@ -8,6 +8,7 @@ import emoji
 # Load environment variables
 load_dotenv()
 API_KEY = os.getenv("SARVAM_API_KEY", st.secrets.get("SARVAM_API_KEY", ""))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", ""))
 
 st.set_page_config(page_title="FRND Quality Translator", layout="wide")
 
@@ -276,6 +277,94 @@ def calculate_translation_confidence(original, translated, source_lang, target_l
     
     return max(0.0, min(1.0, confidence))
 
+# -------------------- CHATGPT INTEGRATION -------------------- #
+
+def get_chatgpt_translation(text, target_lang, source_lang="en-IN"):
+    """Get translation from ChatGPT for comparison"""
+    
+    if not OPENAI_API_KEY:
+        return None, "OpenAI API key not found"
+    
+    # Language mapping for ChatGPT
+    lang_names = {
+        "hi-IN": "Hindi with Roman script and English code-mixing (like: 'weekend ON ho chuka hai')",
+        "ta-IN": "Tamil script with selective English words (like: 'Saturday – weekend OFFICIALLY ON!')",
+        "te-IN": "Telugu with Roman script and English code-mixing (like: 'weekend officially ON lo undhi')",
+        "ml-IN": "Malayalam script with simple English terms preserved",
+        "kn-IN": "Kannada script with simple English terms preserved"
+    }
+    
+    target_lang_instruction = lang_names.get(target_lang, "the target language")
+    
+    prompt = f"""Translate this English text to {target_lang_instruction}:
+
+"{text}"
+
+Keep the translation natural and engaging, preserving brand names like FRND, and maintain the style shown in the examples."""
+
+    try:
+        headers = {
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "gpt-4",
+            "messages": [
+                {"role": "system", "content": "You are a professional translator specializing in Indian languages with natural code-mixing patterns."},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 500,
+            "temperature": 0.3
+        }
+        
+        response = requests.post("https://api.openai.com/v1/chat/completions", 
+                               headers=headers, 
+                               json=payload, 
+                               timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            translation = result["choices"][0]["message"]["content"].strip()
+            return translation, None
+        else:
+            return None, f"ChatGPT API Error: {response.status_code}"
+            
+    except Exception as e:
+        return None, f"ChatGPT Error: {str(e)}"
+
+def calculate_chatgpt_confidence(original, translated, target_lang):
+    """Calculate confidence score for ChatGPT translation"""
+    if not translated:
+        return 0.0
+    
+    confidence = 1.0
+    
+    # Check for appropriate code-mixing patterns
+    if target_lang in ["hi-IN", "te-IN"]:
+        # Should have good English mixing
+        english_words = re.findall(r'\b[A-Za-z]{3,}\b', translated)
+        english_ratio = len(english_words) / len(translated.split()) if translated.split() else 0
+        if english_ratio < 0.2:  # Too little English for code-mixed languages
+            confidence -= 0.2
+    
+    # Check length ratio
+    length_ratio = len(translated) / len(original) if original else 1
+    if length_ratio > 3.0 or length_ratio < 0.3:
+        confidence -= 0.2
+    
+    # Check for brand name preservation
+    if "FRND" in original.upper() and "FRND" not in translated:
+        confidence -= 0.3
+    
+    # Check sentence completeness
+    original_sentences = len(re.findall(r'[.!?]+', original))
+    translated_sentences = len(re.findall(r'[.!?।]+', translated))
+    if original_sentences > translated_sentences + 1:
+        confidence -= 0.3
+    
+    return max(0.0, min(1.0, confidence))
+
 def analyze_translation_quality(original, translated, source_lang, target_lang):
     """Enhanced quality analysis with universal issue detection"""
     quality_flags = []
@@ -449,7 +538,12 @@ with col2:
     formality_level = st.slider("Formality Level:", 1, 5, 2, 
         help="1=Very Casual, 3=Neutral, 5=Very Formal")
     
-    st.markdown("**Translation Style**")
+    st.markdown("**Translation Options**")
+    
+    # Add ChatGPT comparison toggle
+    enable_chatgpt = st.checkbox("🤖 Enable ChatGPT Comparison", 
+                                help="Get ChatGPT translation for quality comparison")
+    
     col_gender, col_mode = st.columns(2)
     with col_gender:
         gender = st.selectbox("Gender:", ["Male", "Female"])
@@ -466,60 +560,146 @@ if st.button("🔄 Translate with Enhanced Quality", type="primary", use_contain
             tgt = LANG_MAP[target_ui]
             selected_mode = MODE_OPTIONS[mode_ui]
             
-            result = translate_text(
+            # Get Sarvam translation
+            sarvam_result = translate_text(
                 text.strip(), src, tgt, gender, selected_mode,
                 context_type, audience, formality_level
             )
             
-            st.session_state.last_translation = result
+            # Get ChatGPT translation if enabled
+            chatgpt_result = None
+            chatgpt_error = None
+            if enable_chatgpt:
+                with st.spinner("Getting ChatGPT comparison..."):
+                    chatgpt_result, chatgpt_error = get_chatgpt_translation(text.strip(), tgt, src)
+            
+            # Store results
+            st.session_state.last_translation = sarvam_result
+            st.session_state.chatgpt_translation = chatgpt_result
+            st.session_state.chatgpt_error = chatgpt_error
             st.session_state.original_text = text
             st.session_state.source_lang = source_ui
             st.session_state.target_lang_ui = target_ui
+            st.session_state.enable_chatgpt = enable_chatgpt
 
 # Display results with enhanced quality analysis
 if 'last_translation' in st.session_state:
     st.divider()
-    st.subheader("📋 Translation Result")
+    st.subheader("📋 Translation Results")
     
-    result_text = st.session_state.last_translation
-    st.text_area("Translated Output:", value=result_text, height=150)
+    # Create columns for side-by-side comparison if ChatGPT is enabled
+    if st.session_state.get('enable_chatgpt', False) and st.session_state.get('chatgpt_translation'):
+        col_sarvam, col_chatgpt = st.columns(2)
+        
+        with col_sarvam:
+            st.markdown("### 🎯 Sarvam Translation")
+            sarvam_result = st.session_state.last_translation
+            st.text_area("Sarvam Output:", value=sarvam_result, height=120, key="sarvam_output")
+            
+        with col_chatgpt:
+            st.markdown("### 🤖 ChatGPT Translation")
+            chatgpt_result = st.session_state.chatgpt_translation
+            st.text_area("ChatGPT Output:", value=chatgpt_result, height=120, key="chatgpt_output")
+    else:
+        # Single translation display
+        sarvam_result = st.session_state.last_translation
+        st.text_area("Sarvam Translation:", value=sarvam_result, height=150)
+        
+        # Show ChatGPT error if any
+        if st.session_state.get('enable_chatgpt', False) and st.session_state.get('chatgpt_error'):
+            st.error(f"ChatGPT Error: {st.session_state.chatgpt_error}")
     
-    # Enhanced quality analysis
-    if not result_text.startswith("❌"):
-        quality_flags, confidence_score = analyze_translation_quality(
+    # Quality Analysis
+    if not sarvam_result.startswith("❌"):
+        # Calculate confidence scores
+        sarvam_quality_flags, sarvam_confidence = analyze_translation_quality(
             st.session_state.original_text, 
-            result_text, 
+            sarvam_result, 
             LANG_MAP[st.session_state.source_lang], 
             LANG_MAP[st.session_state.target_lang_ui]
         )
         
-        # Display confidence score
-        st.subheader("🎯 Translation Quality")
-        col_conf1, col_conf2 = st.columns(2)
-        with col_conf1:
-            if confidence_score >= 0.8:
-                st.success(f"✅ High Confidence: {confidence_score:.1%}")
-            elif confidence_score >= 0.7:
-                st.info(f"📊 Good Confidence: {confidence_score:.1%}")
-            else:
-                st.error(f"⚠️ Low Confidence: {confidence_score:.1%}")
+        # Calculate ChatGPT confidence if available
+        chatgpt_confidence = 0.0
+        if st.session_state.get('chatgpt_translation'):
+            chatgpt_confidence = calculate_chatgpt_confidence(
+                st.session_state.original_text,
+                st.session_state.chatgpt_translation,
+                LANG_MAP[st.session_state.target_lang_ui]
+            )
         
-        with col_conf2:
-            if confidence_score < 0.7:
+        # Display confidence scores
+        st.subheader("🎯 Translation Quality Comparison")
+        
+        if st.session_state.get('chatgpt_translation'):
+            col_sarvam_conf, col_chatgpt_conf = st.columns(2)
+            
+            with col_sarvam_conf:
+                st.markdown("**Sarvam Confidence**")
+                if sarvam_confidence >= 0.8:
+                    st.success(f"✅ {sarvam_confidence:.1%}")
+                elif sarvam_confidence >= 0.7:
+                    st.info(f"📊 {sarvam_confidence:.1%}")
+                else:
+                    st.error(f"⚠️ {sarvam_confidence:.1%}")
+            
+            with col_chatgpt_conf:
+                st.markdown("**ChatGPT Confidence**")
+                if chatgpt_confidence >= 0.8:
+                    st.success(f"✅ {chatgpt_confidence:.1%}")
+                elif chatgpt_confidence >= 0.7:
+                    st.info(f"📊 {chatgpt_confidence:.1%}")
+                else:
+                    st.error(f"⚠️ {chatgpt_confidence:.1%}")
+            
+            # Winner indication
+            st.markdown("---")
+            if sarvam_confidence > chatgpt_confidence:
+                st.success("🏆 **Sarvam wins this round!**")
+            elif chatgpt_confidence > sarvam_confidence:
+                st.info("🏆 **ChatGPT wins this round!**")
+            else:
+                st.warning("🤝 **It's a tie!**")
+                
+        else:
+            # Single confidence display
+            if sarvam_confidence >= 0.8:
+                st.success(f"✅ Sarvam Confidence: {sarvam_confidence:.1%}")
+            elif sarvam_confidence >= 0.7:
+                st.info(f"📊 Sarvam Confidence: {sarvam_confidence:.1%}")
+            else:
+                st.error(f"⚠️ Sarvam Confidence: {sarvam_confidence:.1%}")
                 st.error("🚨 **REVIEW REQUIRED** - Translation may need manual review")
         
         # Show quality flags if any
-        if quality_flags:
-            st.subheader("🔍 Quality Analysis")
-            for flag in quality_flags:
+        if sarvam_quality_flags:
+            st.subheader("🔍 Sarvam Quality Analysis")
+            for flag in sarvam_quality_flags:
                 st.info(flag)
-        elif confidence_score >= 0.7:
-            st.success("✅ Translation meets enhanced quality standards")
+        elif sarvam_confidence >= 0.7:
+            st.success("✅ Sarvam translation meets enhanced quality standards")
     
     # Action buttons
     col_btn1, col_btn2, col_btn3 = st.columns(3)
     with col_btn1:
-        st.download_button("📥 Download", result_text, 
+        # Download the better translation
+        if st.session_state.get('chatgpt_translation'):
+            sarvam_conf = analyze_translation_quality(
+                st.session_state.original_text, 
+                st.session_state.last_translation, 
+                LANG_MAP[st.session_state.source_lang], 
+                LANG_MAP[st.session_state.target_lang_ui]
+            )[1]
+            chatgpt_conf = calculate_chatgpt_confidence(
+                st.session_state.original_text,
+                st.session_state.chatgpt_translation,
+                LANG_MAP[st.session_state.target_lang_ui]
+            )
+            better_translation = st.session_state.chatgpt_translation if chatgpt_conf > sarvam_conf else st.session_state.last_translation
+        else:
+            better_translation = st.session_state.last_translation
+            
+        st.download_button("📥 Download Best", better_translation, 
             file_name=f"translation_{st.session_state.target_lang_ui.lower()}.txt")
     with col_btn2:
         if st.button("🔄 Retranslate"):
