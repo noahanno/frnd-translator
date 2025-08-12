@@ -5,6 +5,7 @@ import requests
 import re
 import emoji
 import csv
+import io
 from datetime import datetime
 
 # Import the combined translation enhancements
@@ -35,7 +36,7 @@ def initialize_csv_file():
     filename = get_csv_filename()
     
     if not os.path.exists(filename):
-        headers = ["Input Language", "Output Language", "Input Text", "Output Text"]
+        headers = ["Input Language", "Output Language", "Input Text", "Output Text", "Timestamp"]
         with open(filename, 'w', newline='', encoding='utf-8') as file:
             writer = csv.writer(file)
             writer.writerow(headers)
@@ -43,7 +44,7 @@ def initialize_csv_file():
     return False
 
 def log_translation_to_csv(input_lang, output_lang, input_text, output_text):
-    """Log translation to CSV file"""
+    """Log translation to CSV file with timestamp"""
     try:
         filename = get_csv_filename()
         initialize_csv_file()
@@ -52,8 +53,11 @@ def log_translation_to_csv(input_lang, output_lang, input_text, output_text):
         input_text_safe = input_text.replace('\n', ' | ').replace('\r', '') if input_text else ""
         output_text_safe = output_text.replace('\n', ' | ').replace('\r', '') if output_text else ""
         
-        # Prepare new row
-        new_row = [input_lang, output_lang, input_text_safe, output_text_safe]
+        # Add timestamp
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Prepare new row with timestamp
+        new_row = [input_lang, output_lang, input_text_safe, output_text_safe, timestamp]
         
         # Append to CSV
         with open(filename, 'a', newline='', encoding='utf-8') as file:
@@ -64,6 +68,57 @@ def log_translation_to_csv(input_lang, output_lang, input_text, output_text):
         
     except Exception as e:
         return False, str(e)
+
+def get_monthly_csv_data():
+    """Get translations from current month only"""
+    try:
+        filename = get_csv_filename()
+        if not os.path.exists(filename):
+            return None, "No translation logs found"
+        
+        # Get current month and year
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+        
+        monthly_data = []
+        
+        with open(filename, 'r', newline='', encoding='utf-8') as file:
+            reader = csv.reader(file)
+            headers = next(reader)  # Get header row
+            
+            # Ensure headers include timestamp
+            if len(headers) < 5:
+                headers.append("Timestamp")
+            
+            monthly_data.append(headers)
+            
+            for row in reader:
+                if len(row) >= 4:  # Ensure row has minimum required data
+                    # Check if timestamp exists and is from current month
+                    if len(row) >= 5 and row[4]:
+                        try:
+                            # Parse existing timestamp
+                            timestamp = datetime.strptime(row[4], "%Y-%m-%d %H:%M:%S")
+                            if timestamp.month == current_month and timestamp.year == current_year:
+                                monthly_data.append(row)
+                        except:
+                            # If timestamp parsing fails, skip this row
+                            continue
+                    else:
+                        # For rows without timestamp, add current timestamp and include
+                        # (this handles old data without timestamps)
+                        current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        if len(row) == 4:
+                            row.append(current_timestamp)
+                            monthly_data.append(row)
+        
+        if len(monthly_data) <= 1:  # Only headers
+            return None, f"No translations found for {datetime.now().strftime('%B %Y')}"
+        
+        return monthly_data, None
+        
+    except Exception as e:
+        return None, f"Error reading CSV: {str(e)}"
 
 # -------------------- CONFIG -------------------- #
 
@@ -627,3 +682,179 @@ if 'final_translation' in st.session_state:
             st.subheader("🔍 Quality Issues Detected")
             for flag in final_quality_flags:
                 st.info(flag)
+        else:
+            if final_conf >= 0.7:
+                st.success("✅ Translation meets enhanced quality standards with training patterns")
+            else:
+                st.warning("⚠️ Translation may need manual review")
+    
+    # Action buttons with monthly CSV download
+    col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+    with col_btn1:
+        st.download_button("📥 Download Translation", st.session_state.final_translation, 
+            file_name=f"translation_{st.session_state.target_lang_ui.lower()}.txt")
+    with col_btn2:
+        # Download ALL CSV logs
+        csv_file = get_csv_filename()
+        if os.path.exists(csv_file):
+            with open(csv_file, "rb") as file:
+                st.download_button("📊 All Logs (Excel)", file.read(), 
+                    file_name="translation_logs_all.csv", mime="text/csv")
+    with col_btn3:
+        # Download THIS MONTH's CSV logs only
+        monthly_data, error = get_monthly_csv_data()
+        if monthly_data:
+            # Convert to CSV string
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerows(monthly_data)
+            csv_string = output.getvalue()
+            
+            current_month_name = datetime.now().strftime("%B_%Y")
+            st.download_button(
+                f"📅 {datetime.now().strftime('%B')} Logs", 
+                csv_string, 
+                file_name=f"translations_{current_month_name}.csv", 
+                mime="text/csv"
+            )
+        else:
+            st.download_button(
+                f"📅 {datetime.now().strftime('%B')} Logs", 
+                "No data for this month", 
+                file_name=f"translations_{datetime.now().strftime('%B_%Y')}.csv", 
+                mime="text/csv",
+                disabled=True
+            )
+    with col_btn4:
+        if st.button("🔄 Retranslate"):
+            st.rerun()
+    
+    # Additional insights
+    if st.session_state.get('gpt_status') == "Enhanced":
+        with st.expander("🔍 Enhanced Translation Process Details"):
+            st.markdown(f"""
+            **Process Completed with Training Enhancement {enhancement_info['version']}:**
+            1. ✅ Sarvam provided initial translation with {len(enhancement_info['training_layers'])} training layers applied
+            2. ✅ ChatGPT reviewed using comprehensive training examples from all contexts
+            3. ✅ ChatGPT applied improvements while maintaining exact style and context
+            4. ✅ Final translation optimized for: {', '.join(enhancement_info['training_layers'])}
+            
+            **Training Benefits:**
+            - Festival/Holiday context optimization (Rakhi, celebrations)
+            - WhatsApp Channel promotion accuracy
+            - Meeting/Live session natural flow
+            - Enhanced cultural sensitivity and brand protection
+            - Improved grammar and naturalness across all contexts
+            
+            **Pattern Coverage:**
+            - Total Training Patterns: {enhancement_info['total_patterns']}
+            - Total Quality Fixes: {enhancement_info['total_fixes']}
+            - Last Updated: {enhancement_info['last_updated']}
+            """)
+
+# Enhanced Help section
+with st.expander("ℹ️ Enhanced AI Quality Guide"):
+    st.markdown(f"""
+    **How Enhanced AI Quality Works (Version {enhancement_info['version']}):**
+    
+    **Step 1: Enhanced Sarvam Translation**
+    - Uses your exact language, context, and formality settings
+    - Applies {len(enhancement_info['training_layers'])} layers of training patterns:
+      * 🎤 Meeting/Live session patterns
+      * 📱 WhatsApp Channel/Privacy patterns
+      * 🎊 Festival/Holiday patterns (Rakhi focus)
+    - Generates contextually accurate translation with training optimization
+    
+    **Step 2: ChatGPT Quality Review with Training Examples** (if enabled)
+    - Reviews Sarvam translation using comprehensive training examples
+    - Maintains exact same context settings and language patterns
+    - Applies improvements based on proven quality patterns
+    - Preserves cultural context and brand formatting
+    
+    **Final Result:**
+    - Best quality translation with all training patterns applied
+    - Enhanced confidence scoring with training pattern compliance
+    - Context-aware quality assessment (Festival, WhatsApp, Meeting contexts)
+    
+    **When to Use:**
+    - ✅ **Enable**: For all important content requiring highest quality
+    - 🎊 **Festivals**: Optimized for Rakhi, holidays, cultural celebrations
+    - 📱 **WhatsApp**: Perfect for channel promotions and privacy messaging
+    - 🎤 **Meetings**: Ideal for live sessions and professional communication
+    - 💡 **Benefit**: Training-enhanced accuracy with cultural sensitivity
+    
+    **Training Data Sources:**
+    - Real FRND translation examples
+    - Festival and cultural content optimization
+    - WhatsApp channel promotion patterns
+    - Meeting and live session flows
+    """)
+
+# Training info section
+with st.expander("📚 Training Enhancement Details"):
+    st.markdown(f"""
+    **Current Training Version: {enhancement_info['version']}**
+    
+    **Training Layers:**
+    1. **Layer 1 - Meeting/Live Sessions**: Natural conversation flow for live interactions
+    2. **Layer 2 - WhatsApp/Privacy**: Channel promotions and privacy-focused messaging  
+    3. **Layer 3 - Festival/Holiday**: Cultural celebrations, especially Rakhi and holidays
+    
+    **Language Support:**
+    - Hindi (Hinglish mixing)
+    - Tamil (Tamil-English mixing)
+    - Telugu (Telugu-English mixing)
+    - Malayalam (Native-focused)
+    - Kannada (Native-focused)
+    - Odia (Native with English terms)
+    
+    **Quality Improvements:**
+    - Context-aware pattern application
+    - Cultural sensitivity optimization
+    - Brand name protection (FRND)
+    - Emoji and formatting preservation
+    - Training pattern compliance scoring
+    
+    **Daily Updates:**
+    - Translation patterns file can be updated daily
+    - App.py remains stable and unchanged
+    - New training data seamlessly integrated
+    """)
+
+# CSV Download Info section
+with st.expander("📊 CSV Download Options"):
+    st.markdown(f"""
+    **Translation Logging:**
+    - All translations are automatically logged with timestamps
+    - CSV format perfect for Excel analysis
+    - Tracks: Input/Output languages, texts, and timestamps
+    
+    **Download Options:**
+    - 📊 **All Logs**: Complete translation history (all months)
+    - 📅 **{datetime.now().strftime('%B')} Logs**: Current month translations only
+    - 📥 **Single Translation**: Individual text file download
+    
+    **Monthly Filtering:**
+    - Automatically filters by current calendar month
+    - Perfect for monthly reports and analysis
+    - Excel-compatible format with proper headers
+    
+    **Use Cases:**
+    - Monthly performance tracking
+    - Content analysis and review
+    - Quality improvement insights
+    - Team collaboration and sharing
+    """)
+
+st.markdown("---")
+
+# Show current enhancement status
+col_status1, col_status2, col_status3 = st.columns(3)
+with col_status1:
+    st.metric("Enhancement Version", enhancement_info['version'])
+with col_status2:
+    st.metric("Training Layers", len(enhancement_info['training_layers']))
+with col_status3:
+    st.metric("Supported Languages", len(enhancement_info['supported_languages']))
+
+st.markdown(f"*FRND Enhanced Translator • AI-Powered Quality Assurance • Training v{enhancement_info['version']} • Monthly CSV Logging*")
