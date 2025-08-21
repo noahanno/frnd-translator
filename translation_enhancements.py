@@ -798,37 +798,22 @@ def add_advanced_context_hints(text, target_lang):
     return text
 
 def add_festival_context_hints(text, target_lang):
-    """Add Layer 3 festival context hints"""
+    """Add Layer 3 festival context hints - OPTIMIZED"""
     lang_code = target_lang.split('-')[0].lower()
     festival_context = detect_message_context_type(text)
-    context_hints = []
+    hints = []
     
-    # Festival-specific hints
     if festival_context == "rakhi_festival":
-        if lang_code == "hi":
-            context_hints.append("Rakhi context - use 'apne bhai ko' and keep 'Raksha Bandhan' in English")
-        elif lang_code == "ta":
-            context_hints.append("Rakhi context - Tamil mixing with 'அண்ணன்/தம்பிக்கு' pattern")
+        hints.append("rakhi context")
+    elif festival_context == "holiday_celebration":
+        hints.append("holiday context")
+    elif festival_context == "gift_giving":
+        hints.append("gift context")
+    elif festival_context == "time_sensitive_promo":
+        hints.append("urgent promo")
     
-    if festival_context == "holiday_celebration":
-        context_hints.append("Holiday context - keep casual excitement, use mixed patterns")
-    
-    if festival_context == "gift_giving":
-        if lang_code == "hi":
-            context_hints.append("Gift context - use 'sirf online aakar' pattern")
-        elif lang_code == "ta":
-            context_hints.append("Gift context - use 'போதும்/சேரும்' patterns")
-    
-    if festival_context == "festival_competition":
-        context_hints.append("Competition context - use encouraging, competitive language")
-    
-    if festival_context == "time_sensitive_promo":
-        context_hints.append("Urgent promo - use time pressure language, keep 'peak time' in English")
-    
-    if context_hints:
-        hint_text = f"[Festival context: {festival_context}, Apply: {', '.join(context_hints)}] "
-        return hint_text + text
-    
+    if hints:
+        return f"[{festival_context}: {', '.join(hints)}] {text}"
     return text
 
 # -------------------- TRAINING FIXES APPLICATION FUNCTIONS -------------------- #
@@ -869,7 +854,7 @@ def apply_festival_training_fixes(text, target_lang):
 # -------------------- MAIN ENHANCEMENT FUNCTIONS -------------------- #
 
 def enhanced_preprocess_input_for_completeness(text, target_lang):
-    """Main preprocessing function that applies all training layers + team corrections"""
+    """Main preprocessing function that applies all training layers + team corrections - OPTIMIZED"""
     
     # Layer 1: Original training (Meeting/Live sessions) + team corrections
     enhanced_text = apply_quality_training_patterns(text, target_lang)
@@ -886,7 +871,23 @@ def enhanced_preprocess_input_for_completeness(text, target_lang):
     # NEW: Team training corrections
     enhanced_text = apply_team_training_corrections(enhanced_text, target_lang)
     
+    # CRITICAL: Clean hints before API call
+    enhanced_text = clean_enhancement_hints_for_api(enhanced_text)
+    
     return enhanced_text
+
+def clean_enhancement_hints_for_api(text):
+    """Remove all enhancement hints before sending to Sarvam API"""
+    
+    hint_patterns = [
+        r'\[.*?\]\s*',  # Remove all bracketed hints
+        r'^\s*:\s*',    # Remove leading colons
+    ]
+    
+    for pattern in hint_patterns:
+        text = re.sub(pattern, '', text, flags=re.MULTILINE)
+    
+    return text.strip()
 
 def enhanced_postprocess_translation_output(text, target_lang):
     """Main post-processing function that applies all training fixes + team corrections"""
