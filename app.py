@@ -330,7 +330,7 @@ def translate_text(text, source_lang, target_lang, gender, mode, context_type=""
 
     headers = {
         "Content-Type": "application/json",
-        "api-subscription-key": API_KEY
+        "API-Subscription-key": API_KEY
     }
 
     response = requests.post("https://api.sarvam.ai/translate", json=payload, headers=headers)
